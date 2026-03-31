@@ -1,7 +1,6 @@
 import os
 import shutil
 import subprocess
-import sys
 
 # ========= CONFIG =========
 HANDBRAKE_PATH = r"HandBrakeCLI.exe"
@@ -44,26 +43,33 @@ def compress_video(input_path, output_path):
     print(f"\n🎬 Compressing:\n{input_path}")
 
     try:
-        # Launch HandBrakeCLI in a new console window
+        creation_flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
         subprocess.run(
             cmd,
             check=True,
-            creationflags=subprocess.CREATE_NEW_CONSOLE
+            creationflags=creation_flags
         )
     except subprocess.CalledProcessError:
         print(f"❌ Failed: {input_path}")
         return
 
-    original_size = os.path.getsize(input_path)
-    compressed_size = os.path.getsize(tmp_output)
-    if compressed_size >= original_size:
-        print(f"⏭️ Compressed file larger or equal — keeping original")
-        shutil.copy2(input_path, output_path)
-        os.remove(tmp_output)
-    else:
-        os.rename(tmp_output, output_path)
-        diff = original_size - compressed_size
-        print(f"✅ Compression successful: {output_path} | {diff} Saved")
+    try:
+        original_size = os.path.getsize(input_path)
+        compressed_size = os.path.getsize(tmp_output)
+
+        if compressed_size >= original_size:
+            print(f"⏭️ Compressed file larger or equal — keeping original")
+            shutil.copy2(input_path, output_path)
+            os.remove(tmp_output)
+        else:
+            os.replace(tmp_output, output_path)  # safer than rename
+            diff = original_size - compressed_size
+            print(f"✅ Compression successful: {output_path} | {diff} Saved")
+
+    except Exception as e:
+        print(f"❌ File handling error: {e}")
+        if os.path.exists(tmp_output):
+            os.remove(tmp_output)
 
 def process_directory(input_dir, output_dir):
     for root, dirs, files in os.walk(input_dir):
@@ -84,26 +90,45 @@ def process_directory(input_dir, output_dir):
                 compress_video(input_file, output_file)
             else:
                 output_copy = os.path.join(output_root, file)
-                if os.path.exists(output_copy):
+                if os.path.exists(output_copy) and os.path.getsize(output_copy) > 0:
                     print(f"⏭️ Skipping copy (exists): {output_copy}")
                     continue
                 print(f"📄 Copying: {input_file}")
                 shutil.copy2(input_file, output_copy)
 
+def get_downloads_folder():
+    return os.path.join(os.path.expanduser("~"), "Downloads")
+
 def main():
-    if len(sys.argv) != 3:
-        print("Usage:")
-        print("python script.py <input_directory> <output_directory>")
+    if shutil.which(HANDBRAKE_PATH) is None and not os.path.isfile(HANDBRAKE_PATH):
+        print("❌ HandBrakeCLI not found. Make sure it's installed or the path is correct.")
         return
 
-    input_dir = sys.argv[1]
-    output_dir = sys.argv[2]
+    print("📥 Video Compression Tool\n")
 
-    if not os.path.exists(input_dir):
-        print("❌ Input directory does not exist")
+    # Get input directory
+    while True:
+        input_dir = input("📂 Enter input directory: ").strip()
+        if os.path.exists(input_dir):
+            break
+        print("❌ Input directory does not exist, try again.\n")
+
+    # Get output directory (optional)
+    output_dir = input("📁 Enter output directory (leave blank for Downloads): ").strip()
+
+    if output_dir == "":
+        output_dir = get_downloads_folder()
+        print(f"📁 Using Downloads folder: {output_dir}")
+
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+    except Exception as e:
+        print(f"❌ Could not create output directory: {e}")
         return
 
-    os.makedirs(output_dir, exist_ok=True)
+    if os.path.abspath(input_dir) == os.path.abspath(output_dir):
+        print("❌ Input and output directories cannot be the same.")
+        return
 
     print(f"\n📂 Input:  {input_dir}")
     print(f"📁 Output: {output_dir}")
@@ -112,6 +137,3 @@ def main():
     process_directory(input_dir, output_dir)
 
     print("\n✅ Done!")
-
-if __name__ == "__main__":
-    main()
