@@ -5,19 +5,24 @@ import subprocess
 # ========= CONFIG =========
 HANDBRAKE_PATH = r"HandBrakeCLI.exe"
 
-VIDEO_ENCODER = "x264"  # Uses CPU, slower but better compression
-# VIDEO_ENCODER = "nvenc_h264" # Uses GPU, faster but larger files
+VIDEO_ENCODER = "x264"  # CPU encoding (slower, better compression)
+# VIDEO_ENCODER = "nvenc_h264"  # GPU encoding (faster, larger files)
+
 VIDEO_QUALITY = "24"
 
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".wmv"}
-
 # ==========================
 
-def is_video(file):
-    return os.path.splitext(file)[1].lower() in VIDEO_EXTENSIONS
+
+def is_video(file_name: str) -> bool:
+    return os.path.splitext(file_name)[1].lower() in VIDEO_EXTENSIONS
 
 
-def compress_video(input_path, output_path):
+def compress_video(input_path: str, output_path: str):
+    """
+    Compress a video using HandBrakeCLI.
+    Falls back to copying if compression is not beneficial.
+    """
     tmp_output = output_path + ".tmp.mp4"
 
     cmd = [
@@ -40,6 +45,8 @@ def compress_video(input_path, output_path):
         "--keep-display-aspect",
     ]
 
+    cmd = [str(x) for x in cmd]
+
     print(f"\n🎬 Compressing:\n{input_path}")
 
     try:
@@ -47,10 +54,15 @@ def compress_video(input_path, output_path):
         subprocess.run(
             cmd,
             check=True,
-            creationflags=creation_flags
+            creationflags=creation_flags,
         )
+
     except subprocess.CalledProcessError:
-        print(f"❌ Failed: {input_path}")
+        print(f"❌ Compression failed: {input_path}")
+        return
+
+    if not os.path.exists(tmp_output):
+        print(f"❌ Output not created: {input_path}")
         return
 
     try:
@@ -58,65 +70,93 @@ def compress_video(input_path, output_path):
         compressed_size = os.path.getsize(tmp_output)
 
         if compressed_size >= original_size:
-            print(f"⏭️ Compressed file larger or equal — keeping original")
+            print("⏭️ No size benefit — keeping original")
             shutil.copy2(input_path, output_path)
             os.remove(tmp_output)
         else:
-            os.replace(tmp_output, output_path)  # safer than rename
-            diff = original_size - compressed_size
-            print(f"✅ Compression successful: {output_path} | {diff} Saved")
+            os.replace(tmp_output, output_path)
+            saved = original_size - compressed_size
+            print(f"✅ Saved {saved} bytes → {output_path}")
 
     except Exception as e:
         print(f"❌ File handling error: {e}")
         if os.path.exists(tmp_output):
             os.remove(tmp_output)
 
-def process_directory(input_dir, output_dir):
-    for root, dirs, files in os.walk(input_dir):
+
+def count_videos(input_dir: str) -> int:
+    total = 0
+    for root, _, files in os.walk(input_dir):
+        for file in files:
+            if is_video(file):
+                total += 1
+    return total
+
+def process_directory(input_dir: str, output_dir: str):
+    total_videos = count_videos(input_dir)
+    remaining_videos = total_videos
+    processed_videos = 0
+
+    if total_videos == 0:
+        print("✅ No videos found to process.")
+        return
+
+    print(f"🎯 Total videos found: {total_videos}\n")
+
+    for root, _, files in os.walk(input_dir):
+
         relative_path = os.path.relpath(root, input_dir)
         output_root = os.path.join(output_dir, relative_path)
-
         os.makedirs(output_root, exist_ok=True)
 
         for file in files:
             input_file = os.path.join(root, file)
-            name, ext = os.path.splitext(file)
+            name, _ = os.path.splitext(file)
             output_file = os.path.join(output_root, name + ".mp4")
 
             if is_video(file):
                 if os.path.exists(output_file):
-                    print(f"⏭️ Skipping (exists): {output_file}")
+                    remaining_videos -= 1
+                    print(f"⏭️ Skipping (exists): {output_file} | New total: {remaining_videos}")
                     continue
+
+                # Update processed count
+                processed_videos += 1
+                print(f"[{processed_videos}/{remaining_videos}] 🎬 Processing:")
                 compress_video(input_file, output_file)
+
             else:
                 output_copy = os.path.join(output_root, file)
                 if os.path.exists(output_copy) and os.path.getsize(output_copy) > 0:
-                    print(f"⏭️ Skipping copy (exists): {output_copy}")
+                    print(f"⏭️ Skipping copy: {output_copy}")
                     continue
+
                 print(f"📄 Copying: {input_file}")
                 shutil.copy2(input_file, output_copy)
 
-def get_downloads_folder():
+
+def get_downloads_folder() -> str:
     return os.path.join(os.path.expanduser("~"), "Downloads")
 
+
 def main():
+    # Validate HandBrakeCLI exists
     if shutil.which(HANDBRAKE_PATH) is None and not os.path.isfile(HANDBRAKE_PATH):
         print("❌ HandBrakeCLI not found. Make sure it's installed or the path is correct.")
         return
 
     print("📥 Video Compression Tool\n")
 
-    # Get input directory
+    # --- Input directory ---
     while True:
         input_dir = input("📂 Enter input directory: ").strip()
         if os.path.exists(input_dir):
             break
-        print("❌ Input directory does not exist, try again.\n")
+        print("❌ Invalid path, try again.\n")
 
-    # Get output directory (optional)
+    # --- Output directory ---
     output_dir = input("📁 Enter output directory (leave blank for Downloads): ").strip()
-
-    if output_dir == "":
+    if not output_dir:
         output_dir = get_downloads_folder()
         print(f"📁 Using Downloads folder: {output_dir}")
 
@@ -137,3 +177,6 @@ def main():
     process_directory(input_dir, output_dir)
 
     print("\n✅ Done!")
+
+if __name__ == "__main__":
+    main()
