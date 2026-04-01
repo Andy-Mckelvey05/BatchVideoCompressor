@@ -1,1 +1,2 @@
 python BatchVideoCompressor.py
+pause

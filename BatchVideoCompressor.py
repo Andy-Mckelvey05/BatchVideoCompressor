@@ -98,7 +98,12 @@ def compress_video(input_path: str, output_path: str):
     ]
 
     try:
-        subprocess.run(cmd, check=True)
+        creation_flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+        subprocess.run(
+            cmd,
+            check=True,
+            creationflags=creation_flags,
+        )
     except subprocess.CalledProcessError:
         print("❌ CPU encode failed, falling back to original")
         shutil.copy2(input_path, output_path)
