@@ -9,11 +9,13 @@ VIDEO_ENCODER = "x264"  # CPU encoding (slower, better compression)
 VIDEO_QUALITY = "24"
 
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".wmv"}
+GPU_THRESHOLD = 1.3
 # ==========================
 
 
 def is_video(file_name: str) -> bool:
     return os.path.splitext(file_name)[1].lower() in VIDEO_EXTENSIONS
+
 
 def encode_gpu(input_path: str, output_path: str) -> bool:
     cmd = [
@@ -45,6 +47,7 @@ def encode_gpu(input_path: str, output_path: str) -> bool:
         print(f"❌ GPU encode failed: {e}")
         return False
 
+
 def compress_video(input_path: str, output_path: str):
     gpu_tmp = output_path + ".gpu.mp4"
     cpu_tmp = output_path + ".cpu.mp4"
@@ -59,16 +62,19 @@ def compress_video(input_path: str, output_path: str):
 
     original_size = os.path.getsize(input_path)
     gpu_size = os.path.getsize(gpu_tmp)
+    gpu_ratio = gpu_size / original_size
 
-    if gpu_size >= original_size:
-        print("⏭️ GPU result larger — skipping CPU encode, copying original")
+    print(f"📊 GPU size ratio: {gpu_ratio:.2f}x")
+
+    # Only run CPU if GPU result is not too large
+    if gpu_ratio > GPU_THRESHOLD:
+        print(f"⏭️ GPU result > {int((GPU_THRESHOLD - 1) * 100)}% larger — skipping CPU encode, copying original")
         os.remove(gpu_tmp)
         shutil.copy2(input_path, output_path)
         return
 
     print("✅ GPU shows potential savings → running CPU encode...")
 
-    # 🔥 NEW: delete GPU file early to free space
     try:
         os.remove(gpu_tmp)
     except Exception as e:
@@ -99,8 +105,8 @@ def compress_video(input_path: str, output_path: str):
         return
 
     os.replace(cpu_tmp, output_path)
-
     print("✅ CPU encode complete (best compression)")
+
 
 def count_videos(input_dir: str) -> int:
     total = 0
@@ -109,6 +115,7 @@ def count_videos(input_dir: str) -> int:
             if is_video(file):
                 total += 1
     return total
+
 
 def process_directory(input_dir: str, output_dir: str):
     total_videos = count_videos(input_dir)
@@ -187,6 +194,7 @@ def main():
     process_directory(input_dir, output_dir)
 
     print("\n✅ Done!")
+
 
 if __name__ == "__main__":
     main()
