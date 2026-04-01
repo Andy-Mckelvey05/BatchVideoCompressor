@@ -21,7 +21,7 @@ def encode_gpu(input_path: str, output_path: str) -> bool:
         "-i", input_path,
         "-o", output_path,
         "--format", "av_mp4",
-        "--encoder", "nvenc_h264", # GPU encoding (faster, larger files)
+        "--encoder", "nvenc_h264",
         "--quality", VIDEO_QUALITY,
         "--rate", "auto",
         "--vfr",
@@ -31,9 +31,18 @@ def encode_gpu(input_path: str, output_path: str) -> bool:
     ]
 
     try:
-        subprocess.run(cmd, check=True)
+        creation_flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+
+        subprocess.run(
+            cmd,
+            check=True,
+            creationflags=creation_flags,
+        )
+
         return os.path.exists(output_path)
-    except subprocess.CalledProcessError:
+
+    except subprocess.CalledProcessError as e:
+        print(f"❌ GPU encode failed: {e}")
         return False
 
 def compress_video(input_path: str, output_path: str):
