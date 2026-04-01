@@ -133,7 +133,8 @@ def process_directory(input_dir: str, output_dir: str):
 
             if is_video(file):
                 processed_videos += 1
-                print(f"[{processed_videos}/{total_videos}] 🎬 Processing:")
+                percentage = round((processed_videos / total_videos) * 100)
+                print(f"\n[{processed_videos}/{total_videos} | {percentage}%] 🎬 Processing:")
                 compress_video(input_file, output_file)
 
             else:
@@ -158,14 +159,12 @@ def main():
 
     print("📥 Video Compression Tool\n")
 
-    # --- Input directory ---
     while True:
         input_dir = input("📂 Enter input directory: ").strip()
         if os.path.exists(input_dir):
             break
         print("❌ Invalid path, try again.\n")
 
-    # --- Output directory ---
     output_dir = input("📁 Enter output directory (leave blank for Downloads): ").strip()
     if not output_dir:
         output_dir = get_downloads_folder()
