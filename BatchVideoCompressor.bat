@@ -1,2 +1,2 @@
-python BatchVideoCompressor.py
+python Code\main.py
 pause
