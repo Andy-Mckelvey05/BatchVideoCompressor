@@ -29,8 +29,6 @@ def encode_gpu(input_path: str, output_path: str, resize_args: list) -> bool:
         "--all-audio",
         "--aencoder",
         "copy",
-
-        "--all-subtitles",
     ]
 
     try:
@@ -88,8 +86,6 @@ def encode_cpu(input_path: str, output_path: str, resize_args: list, audio_track
 
         "--ab",
         "160",
-
-        "--all-subtitles",
     ]
 
     try:
