@@ -37,6 +37,8 @@ def scan_audio_tracks(input_path: str) -> list:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
         )
 
@@ -45,31 +47,55 @@ def scan_audio_tracks(input_path: str) -> list:
         return []
 
     output = result.stdout
-
     tracks = []
 
     in_audio_section = False
 
     for line in output.splitlines():
-        if line.strip() == "+ audio tracks:":
+        stripped = line.strip()
+
+        if stripped.lower() == "+ audio tracks:":
             in_audio_section = True
             continue
 
-        if line.strip().startswith("+ subtitle tracks:"):
+        if in_audio_section and stripped.lower().startswith("+ subtitle tracks:"):
             break
 
         if not in_audio_section:
             continue
 
-        match = re.match(
-            r"^\s*\+\s*(\d+),\s*(.*?)" r"\s*\(iso639-2:\s*([a-z]{3})\)\s*$", line, re.IGNORECASE,)
+        track_match = re.match(r"^\+\s*(\d+),\s*(.*)$", stripped)
 
-        if not match:
+        if not track_match:
             continue
 
-        track_number = int(match.group(1))
-        description = match.group(2).strip()
-        language = match.group(3).lower()
+        track_number = int(track_match.group(1))
+        track_text = track_match.group(2).strip()
+
+        language_match = re.search(
+            r"\(iso639-2:\s*([a-z]{3})\)",
+            track_text,
+            re.IGNORECASE,
+        )
+
+        if language_match:
+            language = language_match.group(1).lower()
+        else:
+            language = "und"
+
+        description = re.sub(
+            r"\s*\(iso639-2:\s*[a-z]{3}\)",
+            "",
+            track_text,
+            flags=re.IGNORECASE,
+        ).strip()
+
+        description = re.sub(
+            r",\s*\d+\s*Hz,\s*\d+\s*bps\s*$",
+            "",
+            description,
+            flags=re.IGNORECASE,
+        ).strip()
 
         channels = detect_channels(description)
         bitrate = detect_bitrate(description)
