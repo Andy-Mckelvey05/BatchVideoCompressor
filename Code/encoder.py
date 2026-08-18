@@ -51,7 +51,7 @@ def encode_gpu(input_path: str, output_path: str, resize_args: list) -> bool:
         return False
 
 
-def encode_cpu(input_path: str, output_path: str, resize_args: list) -> bool:
+def encode_cpu(input_path: str, output_path: str, resize_args: list, audio_track) -> bool:
     cmd = [
         config.HANDBRAKE_PATH,
         "-i",
@@ -80,9 +80,14 @@ def encode_cpu(input_path: str, output_path: str, resize_args: list) -> bool:
         "--encoder-preset",
         "fast",
 
-        "--all-audio",
+        "--audio",
+        str(audio_track),
+
         "--aencoder",
-        "copy",
+        "av_aac",
+
+        "--ab",
+        "160",
 
         "--all-subtitles",
     ]
